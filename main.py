@@ -1,18 +1,29 @@
 from fastapi import FastAPI, Request
 import httpx
 import os
+import random
 from dotenv import load_dotenv
 
 load_dotenv()
 app = FastAPI()
 
-# Twitch credentials
 TWITCH_CLIENT_ID = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 TWITCH_ACCESS_TOKEN = os.getenv("TWITCH_ACCESS_TOKEN")
 TWITCH_REFRESH_TOKEN = os.getenv("TWITCH_REFRESH_TOKEN")
 
-# --- Helper: Refresh access token ---
+# --- Debug route ---
+@app.get("/debug-env")
+async def debug_env():
+    return {
+        "TWITCH_CLIENT_ID": bool(TWITCH_CLIENT_ID),
+        "TWITCH_CLIENT_SECRET": bool(TWITCH_CLIENT_SECRET),
+        "TWITCH_ACCESS_TOKEN": bool(TWITCH_ACCESS_TOKEN),
+        "TWITCH_REFRESH_TOKEN": bool(TWITCH_REFRESH_TOKEN),
+    }
+
+
+# --- Refresh access token ---
 async def refresh_access_token() -> str | None:
     url = "https://id.twitch.tv/oauth2/token"
     params = {
@@ -50,9 +61,9 @@ async def get_user_id(username: str, token: str) -> str | None:
     return None
 
 
-# --- Get most recent clip for user ---
-async def get_recent_clip(user_id: str, token: str) -> str | None:
-    url = f"https://api.twitch.tv/helix/clips?broadcaster_id={user_id}&first=1"
+# --- Get random recent clip (from last 5) ---
+async def get_random_recent_clip(user_id: str, token: str) -> str | None:
+    url = f"https://api.twitch.tv/helix/clips?broadcaster_id={user_id}&first=5"
     headers = {"Client-ID": TWITCH_CLIENT_ID, "Authorization": f"Bearer {token}"}
 
     async with httpx.AsyncClient() as client:
@@ -61,7 +72,8 @@ async def get_recent_clip(user_id: str, token: str) -> str | None:
     if resp.status_code == 200:
         data = resp.json().get("data", [])
         if data:
-            return data[0]["url"]
+            clip = random.choice(data)
+            return clip["url"]
     elif resp.status_code == 401:
         return "unauthorized"
     return None
@@ -99,16 +111,16 @@ async def twitch_command(request: Request):
         if not user_id:
             return f"⚠️ Could not find Twitch user '{streamer}'."
 
-        clip_url = await get_recent_clip(user_id, TWITCH_ACCESS_TOKEN)
+        clip_url = await get_random_recent_clip(user_id, TWITCH_ACCESS_TOKEN)
 
         if clip_url == "unauthorized":
             new_token = await refresh_access_token()
             if not new_token:
                 return "⚠️ Twitch authorization failed. Please try again later."
-            clip_url = await get_recent_clip(user_id, new_token)
+            clip_url = await get_random_recent_clip(user_id, new_token)
 
         if clip_url:
-            return f"🎬 Check out **{streamer}**! Here's a recent clip: {clip_url}"
+            return f"🎉 Go follow **{streamer}** — always an awesome time! Here's a recent clip: {clip_url}"
         else:
             return f"⚠️ No recent clips found for **{streamer}**."
 
@@ -118,3 +130,4 @@ async def twitch_command(request: Request):
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Twitch Shoutout Bot is live!"}
+
