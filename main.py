@@ -1,4 +1,6 @@
+
 from fastapi import FastAPI, Request
+from fastapi.responses import PlainTextResponse
 import httpx
 import os
 import random
@@ -63,7 +65,7 @@ async def get_recent_clip(user_id: str, token: str) -> str | None:
     if resp.status_code == 200:
         data = resp.json().get("data", [])
         if data:
-            clip = random.choice(data)  # Pick a random one from recent 5
+            clip = random.choice(data)  # Pick a random one from the recent 5
             return clip["url"]
     elif resp.status_code == 401:
         return "unauthorized"
@@ -72,18 +74,9 @@ async def get_recent_clip(user_id: str, token: str) -> str | None:
 
 # --- Normalize streamer name ---
 def normalize_name(raw: str) -> str:
-    name = raw.strip()
-    name = name.lstrip('@')
-    name = (
-        name.replace("https://www.twitch.tv/", "")
-        .replace("http://www.twitch.tv/", "")
-        .replace("https://twitch.tv/", "")
-        .replace("http://twitch.tv/", "")
-    )
-    name = name.split('?')[0].strip('/')
-    normalized = name.lower()
-    print(f"🧩 Normalized streamer name: {raw} → {normalized}")
-    return normalized
+    name = raw.strip().lstrip('@').rstrip('/')
+    name = name.replace("https://twitch.tv/", "").replace("http://twitch.tv/", "")
+    return name.lower()
 
 
 # --- Handle Nightbot command ---
@@ -98,13 +91,14 @@ async def twitch_command(request: Request):
         message = request.query_params.get("message", "")
 
     if not command:
-        return {"error": "Missing command"}
+        return PlainTextResponse("⚠️ Missing command")
 
     if command.lower() in ["!shoutout", "!so"]:
         parts = message.strip().split()
         if not parts:
-            return "⚠️ Please specify a streamer name — e.g. !shoutout streamername"
+            return PlainTextResponse("⚠️ Please specify a streamer name — e.g. !shoutout streamername")
 
+        # Extract and normalize streamer name
         streamer = normalize_name(parts[0])
 
         user_id = await get_user_id(streamer, TWITCH_ACCESS_TOKEN)
@@ -113,18 +107,18 @@ async def twitch_command(request: Request):
             print("🔐 Access token expired. Refreshing...")
             new_token = await refresh_access_token()
             if not new_token:
-                return "⚠️ Twitch authorization failed. Please try again later."
+                return PlainTextResponse("⚠️ Twitch authorization failed. Please try again later.")
             user_id = await get_user_id(streamer, new_token)
 
         if not user_id:
-            return f"⚠️ Could not find Twitch user '{streamer}'."
+            return PlainTextResponse(f"⚠️ Could not find Twitch user '{streamer}'.")
 
         clip_url = await get_recent_clip(user_id, TWITCH_ACCESS_TOKEN)
 
         if clip_url == "unauthorized":
             new_token = await refresh_access_token()
             if not new_token:
-                return "⚠️ Twitch authorization failed. Please try again later."
+                return PlainTextResponse("⚠️ Twitch authorization failed. Please try again later.")
             clip_url = await get_recent_clip(user_id, new_token)
 
         if clip_url:
@@ -132,9 +126,9 @@ async def twitch_command(request: Request):
         else:
             message = f"📣 Go follow {streamer} at https://twitch.tv/{streamer}! (No recent clips found yet.)"
 
-        return message.strip()
+        return PlainTextResponse(message.strip())
 
-    return f"✅ Command '{command}' received!"
+    return PlainTextResponse(f"✅ Command '{command}' received!")
 
 
 @app.get("/")
