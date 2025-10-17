@@ -72,31 +72,15 @@ async def get_recent_clip(user_id: str, token: str) -> str | None:
 
 # --- Normalize streamer name ---
 def normalize_name(raw: str) -> str:
-    """
-    Cleans up streamer name input from chat or URL.
-    Works with:
-      - @Username
-      - Username
-      - https://twitch.tv/Username
-      - https://www.twitch.tv/Username/
-      - http://twitch.tv/Username
-    Returns lowercase username only.
-    """
     name = raw.strip()
-    # Remove leading @
     name = name.lstrip('@')
-
-    # Remove any Twitch URL parts
     name = (
         name.replace("https://www.twitch.tv/", "")
         .replace("http://www.twitch.tv/", "")
         .replace("https://twitch.tv/", "")
         .replace("http://twitch.tv/", "")
     )
-
-    # Remove trailing slashes or query strings
     name = name.split('?')[0].strip('/')
-
     normalized = name.lower()
     print(f"🧩 Normalized streamer name: {raw} → {normalized}")
     return normalized
@@ -121,7 +105,6 @@ async def twitch_command(request: Request):
         if not parts:
             return "⚠️ Please specify a streamer name — e.g. !shoutout streamername"
 
-        # Extract and normalize streamer name
         streamer = normalize_name(parts[0])
 
         user_id = await get_user_id(streamer, TWITCH_ACCESS_TOKEN)
@@ -145,9 +128,11 @@ async def twitch_command(request: Request):
             clip_url = await get_recent_clip(user_id, new_token)
 
         if clip_url:
-            return f"📣 Go follow **{streamer}** at https://twitch.tv/{streamer}! Here's a recent clip: {clip_url}
+            message = f"📣 Go follow {streamer} at https://twitch.tv/{streamer}! Here's a recent clip: {clip_url}"
         else:
-            return f"📣 Go follow **{streamer}** at https://twitch.tv/{streamer}! (No recent clips found yet.)"
+            message = f"📣 Go follow {streamer} at https://twitch.tv/{streamer}! (No recent clips found yet.)"
+
+        return message.strip()
 
     return f"✅ Command '{command}' received!"
 
