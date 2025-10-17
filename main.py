@@ -145,7 +145,7 @@ async def twitch_command(request: Request):
             clip_url = await get_recent_clip(user_id, new_token)
 
         if clip_url:
-            return f"📣 Go follow **{streamer}** at https://twitch.tv/{streamer}! Here's a recent clip: {clip_url}"
+            return f"📣 Go follow **{streamer}** at https://twitch.tv/{streamer}! Here's a recent clip: {clip_url}
         else:
             return f"📣 Go follow **{streamer}** at https://twitch.tv/{streamer}! (No recent clips found yet.)"
 
